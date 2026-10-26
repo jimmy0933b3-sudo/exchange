@@ -92,14 +92,45 @@ jobs:
           ./gradlew :app:assembleRelease --no-daemon \
             "-PbuildVersionCode=$GITHUB_RUN_NUMBER" \
             "-PsigningStoreFile=$RUNNER_TEMP/exchange-release.jks"
+          # Report exact failures: a plain `test -s` or command substitution
+          # previously hid which post-build check returned exit code 1.
+          echo "::group::Locate release APK"
+          find app/build/outputs/apk -maxdepth 3 -type f -printf '%p (%s bytes)\n'
           apk="app/build/outputs/apk/release/app-release.apk"
-          test -s "$apk"
+          if [[ ! -s "$apk" ]]; then
+            echo "::error::Expected signed APK not found: $apk"
+            exit 1
+          fi
+          echo "Release APK located: $apk"
+          echo "::endgroup::"
 
-          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-          test -x "$apksigner"
-          verification="$("$apksigner" verify --verbose --print-certs "$apk")"
-          cert_sha="$(printf '%s\n' "$verification" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
-          test -n "$cert_sha"
+          echo "::group::Verify release APK signature"
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [[ -z "$sdk_root" || ! -d "$sdk_root/build-tools" ]]; then
+            echo "::error::Android build-tools directory is missing."
+            exit 1
+          fi
+          apksigner="$(find "$sdk_root/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [[ ! -x "$apksigner" ]]; then
+            echo "::error::apksigner not found or not executable."
+            exit 1
+          fi
+          echo "Using: $apksigner"
+          # Never suppress apksigner diagnostics on failure. No private keys,
+          # passwords or keystore contents are printed by verify.
+          if ! "$apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apksigner-report.txt" 2>&1; then
+            cat "$RUNNER_TEMP/apksigner-report.txt"
+            echo "::error::apksigner verification failed. Keeping the previous Release."
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/apksigner-report.txt"
+          cert_sha="$(sed -nE 's/^[[:space:]]*Signer #1 certificate SHA-256 digest:[[:space:]]*([[:xdigit:]]{64}).*/\1/p' "$RUNNER_TEMP/apksigner-report.txt" | head -n 1)"
+          if [[ ! "$cert_sha" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "::error::Verified APK, but cannot parse the 64-character signer SHA-256 fingerprint."
+            exit 1
+          fi
+          cert_sha="${cert_sha,,}"
+          echo "::endgroup::"
 
           mkdir -p build/release
           cp "$apk" build/release/exchange-latest.apk
