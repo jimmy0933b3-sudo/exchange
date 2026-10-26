@@ -1,109 +1,190 @@
-name: Android CI
+name: Android CI and Signed Release
 
 on:
   push:
     branches: [ "master", "main", "jules-*" ]
   pull_request:
     branches: [ "master", "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Do not let two master builds publish/remove releases at the same time.
+concurrency:
+  group: exchange-android-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  verify:
+    name: Test and build debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Unit tests and debug APK
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+      - name: Upload test APK for PR / branch builds
+        if: github.ref != 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: exchange-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
 
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'temurin'
-        cache: gradle
+  release:
+    name: Sign and publish latest release
+    needs: verify
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      - name: Restore fixed Actions signing key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for required in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "$(printenv "$required")" ]]; then
+              echo "::error::Missing Actions Secret $required. Aborting without publishing a debug-signed APK."
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 --decode > "$RUNNER_TEMP/exchange-release.jks"
+          test -s "$RUNNER_TEMP/exchange-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/exchange-release.jks" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null
+          echo "Fixed keystore and alias validated (key contents not printed)."
 
-    - name: Run Unit Tests
-      run: ./gradlew testDebugUnitTest --no-daemon
+      - name: Build and verify signed Release APK
+        shell: bash
+        env:
+          ORG_GRADLE_PROJECT_signingStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingKeyAlias: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_signingKeyPassword: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon \
+            "-PbuildVersionCode=$GITHUB_RUN_NUMBER" \
+            "-PsigningStoreFile=$RUNNER_TEMP/exchange-release.jks"
+          apk="app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
 
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug --no-daemon
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$apksigner"
+          verification="$("$apksigner" verify --verbose --print-certs "$apk")"
+          cert_sha="$(printf '%s\n' "$verification" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          test -n "$cert_sha"
 
-    - name: Generate Signature Fingerprints
-      run: |
-        set -e
-        set -o pipefail
+          mkdir -p build/release
+          cp "$apk" build/release/exchange-latest.apk
+          (
+            cd build/release
+            sha256sum exchange-latest.apk > exchange-latest.apk.sha256
+          )
+          printf 'Signer SHA256: %s\nCommit: %s\nversionCode: %s\n' \
+            "$cert_sha" "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" > build/release/SIGNING-INFO.txt
+          echo "SIGNER_SHA256=$cert_sha" >> "$GITHUB_ENV"
+          echo "### Verified signed Release APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Certificate SHA-256: `$cert_sha`" >> "$GITHUB_STEP_SUMMARY"
+          echo "versionCode: `$GITHUB_RUN_NUMBER`" >> "$GITHUB_STEP_SUMMARY"
 
-        APK_PATH=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
-        if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
-          echo "Error: APK file not found!" >&2
-          exit 1
-        fi
+      - name: Publish new release and remove older releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Do not publish a stale build when a newer master revision exists.
+          head_sha="$(gh api "repos/$GH_REPO/git/ref/heads/master" --jq .object.sha)"
+          if [[ "$head_sha" != "$GITHUB_SHA" ]]; then
+            echo "master has advanced; skipping obsolete release."
+            exit 0
+          fi
 
-        export APK_NAME=$(basename "$APK_PATH")
-        export COMMIT_SHA="${{ github.sha }}"
+          # Preserve upgrade compatibility: do not rotate signing certificates.
+          previous_json=""
+          if previous_json="$(gh api "repos/$GH_REPO/releases/latest" 2>"$RUNNER_TEMP/last-release-error")"; then
+            old_signer="$(printf '%s' "$previous_json" | jq -r '.body // ""' | sed -n 's/^Signer SHA256: //p' | head -n 1)"
+            if [[ -n "$old_signer" && "$old_signer" != "$SIGNER_SHA256" ]]; then
+              echo "::error::Signer differs from the current Release. Previous release is preserved."
+              exit 1
+            fi
+          elif ! grep -q 'HTTP 404' "$RUNNER_TEMP/last-release-error"; then
+            cat "$RUNNER_TEMP/last-release-error" >&2
+            exit 1
+          fi
 
-        # Extract Package Name / Application ID from build.gradle.kts
-        PACKAGE_NAME=$(grep -E 'applicationId\s*=' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
-        if [ -z "$PACKAGE_NAME" ]; then
-          PACKAGE_NAME="com.fubon.fxmonitor"
-        fi
-        export PACKAGE_NAME
+          tag="ci-$GITHUB_RUN_NUMBER-$GITHUB_RUN_ATTEMPT"
+          cat > build/release/RELEASE-NOTES.md <<EOF
+          Signer SHA256: $SIGNER_SHA256
+          Commit: $GITHUB_SHA
+          versionCode: $GITHUB_RUN_NUMBER
 
-        # Find apksigner tool
-        APKSIGNER=$(find $ANDROID_HOME/build-tools/ -name "apksigner" | sort -V | tail -n 1)
-        if [ -z "$APKSIGNER" ] || [ ! -x "$APKSIGNER" ]; then
-          echo "Error: apksigner not found or not executable!" >&2
-          exit 1
-        fi
+          Automated signed Android Release APK from master.
+          Tests and APK signature verification passed.
+          EOF
 
-        echo "Using apksigner at: $APKSIGNER"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" \
+              build/release/exchange-latest.apk \
+              build/release/exchange-latest.apk.sha256 \
+              build/release/SIGNING-INFO.txt --clobber
+            gh release edit "$tag" --latest \
+              --notes-file build/release/RELEASE-NOTES.md
+          else
+            gh release create "$tag" \
+              build/release/exchange-latest.apk \
+              build/release/exchange-latest.apk.sha256 \
+              build/release/SIGNING-INFO.txt \
+              --target "$GITHUB_SHA" \
+              --latest \
+              --title "我的匯率 最新版 ($tag)" \
+              --notes-file build/release/RELEASE-NOTES.md
+          fi
 
-        # Verify signature with apksigner (Fail if verification fails)
-        VERIFY_OUTPUT=$("$APKSIGNER" verify --verbose --print-certs "$APK_PATH")
+          # Validate ALL published assets before deleting any older Release.
+          assets="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+          grep -Fxq exchange-latest.apk <<< "$assets"
+          grep -Fxq exchange-latest.apk.sha256 <<< "$assets"
+          grep -Fxq SIGNING-INFO.txt <<< "$assets"
 
-        export SHA1=$(echo "$VERIFY_OUTPUT" | grep -i "certificate SHA-1 digest:" | head -n 1 | awk '{print $NF}')
-        export SHA256=$(echo "$VERIFY_OUTPUT" | grep -i "certificate SHA-256 digest:" | head -n 1 | awk '{print $NF}')
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[].tag_name' |
+            while IFS= read -r old_tag; do
+              [[ -z "$old_tag" || "$old_tag" == "$tag" ]] && continue
+              gh release delete "$old_tag" --yes --cleanup-tag
+            done
 
-        if [ -z "$SHA1" ] || [ -z "$SHA256" ]; then
-          echo "Error: Failed to extract SHA-1 or SHA-256 certificate fingerprints from apksigner output!" >&2
-          echo "$VERIFY_OUTPUT" >&2
-          exit 1
-        fi
+          echo "### Release published" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/$GH_REPO/releases/latest" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "$tag" --json url,assets --jq '{url,assets:[.assets[].name]}'
 
-        # Compute APK file checksum
-        export FILE_SHA256=$(sha256sum "$APK_PATH" | awk '{print $1}')
-        echo "$FILE_SHA256" > "${APK_PATH}.sha256"
-
-        python3 -c "
-        import os
-        report = (
-            '=== APK 簽章指紋報告 ===\n'
-            f'APK 檔名: {os.environ[\"APK_NAME\"]}\n'
-            f'Commit SHA: {os.environ[\"COMMIT_SHA\"]}\n'
-            f'Application ID / Package: {os.environ[\"PACKAGE_NAME\"]}\n'
-            '簽章狀態: Android Debug 簽章\n\n'
-            '[簽章憑證指紋]\n'
-            f'SHA-1 指紋: {os.environ[\"SHA1\"]}\n'
-            f'SHA-256 指紋: {os.environ[\"SHA256\"]}\n\n'
-            '[APK 檔案校驗碼 (File Checksum)]\n'
-            f'SHA-256 校驗碼: {os.environ[\"FILE_SHA256\"]}\n\n'
-            f'註：{os.environ[\"APK_NAME\"]}.sha256 為 APK 檔案校驗碼（File Checksum），僅用於下載完整性比對。\n'
-        )
-        with open('apk_signature_fingerprints.txt', 'w', encoding='utf-8') as f:
-            f.write(report)
-        "
-
-        echo "=== 簽章報告內容 ==="
-        cat apk_signature_fingerprints.txt
-
-        # Write to Github Actions Summary
-        if [ -n "$GITHUB_STEP_SUMMARY" ]; then
-          cat apk_signature_fingerprints.txt >> "$GITHUB_STEP_SUMMARY"
-        fi
-
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/*.apk
+      - name: Remove signing keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/exchange-release.jks"
