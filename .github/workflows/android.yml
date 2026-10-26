@@ -124,7 +124,10 @@ jobs:
             exit 1
           fi
           cat "$RUNNER_TEMP/apksigner-report.txt"
-          cert_sha="$(sed -nE 's/^[[:space:]]*Signer #1 certificate SHA-256 digest:[[:space:]]*([[:xdigit:]]{64}).*/\1/p' "$RUNNER_TEMP/apksigner-report.txt" | head -n 1)"
+          # Build Tools 37 emits "V2 Signer: certificate SHA-256 digest:"
+          # while older apksigner versions emit "Signer #1 certificate ...".
+          # Match the shared field name instead of the version-specific prefix.
+          cert_sha="$(awk '/certificate SHA-256 digest:/ { print $NF; exit }' "$RUNNER_TEMP/apksigner-report.txt")"
           if [[ ! "$cert_sha" =~ ^[[:xdigit:]]{64}$ ]]; then
             echo "::error::Verified APK, but cannot parse the 64-character signer SHA-256 fingerprint."
             exit 1
