@@ -1,6 +1,6 @@
 # 我的匯率 (台北富邦銀行匯率監控)
 
-[![Android CI Build](https://github.com/jimmy0933/exchange/actions/workflows/android.yml/badge.svg)](https://github.com/jimmy0933/exchange/actions)
+[![Android CI Build](https://github.com/jimmy0933b3-sudo/exchange/actions/workflows/android.yml/badge.svg)](https://github.com/jimmy0933b3-sudo/exchange/actions)
 
 「我的匯率」是一款專為台北富邦銀行匯率監控設計的原生 Android App。不需要登入銀行帳號即可自動查詢最新公開牌告匯率、多外幣即期與現鈔監控、自訂目標匯率到價通知、歷史趨勢圖表、桌面 Widget 與換匯試算。
 
@@ -40,13 +40,25 @@
 
 ## 🔑 CI / CD 說明
 
-本專案採用 GitHub Actions 進行持續整合與自動化建置，不需要設定任何 GitHub Secrets 或外部 OAuth 認證。
+GitHub Actions 在 PR 與開發分支執行單元測試及 Debug APK 建置。**只有 master 通過測試後**，才使用固定簽章金鑰建置可更新安裝的正式 Release APK。
 
-1. **自動化流程**：
-   - 自動執行單元測試。
-   - 使用 Android 預設 Debug Keystore 自動編譯並產生 APK。
-2. **未來擴充性**：
-   - 專案架構保留未來擴充正式 Release 簽章的可能性。
+請在本 repository 的 **Settings → Secrets and variables → Actions → Repository secrets** 設定：
+
+| Secret | 內容 |
+| --- | --- |
+| `KEYSTORE_BASE64` | 固定 Android release keystore (.jks / .p12) 的 Base64 內容 |
+| `KEYSTORE_PASSWORD` | Keystore 密碼 |
+| `KEY_ALIAS` | 用於簽署 APK 的 alias |
+| `KEY_PASSWORD` | 簽章私鑰密碼 |
+
+使用與其他 Android 專案相同的 Secret 名稱，但 **Secrets 是逐個 repository 設定**，不會從別的 repository 自動繼承。切勿將 keystore、密碼或 Base64 私鑰提交至 Git。若 Secret 不完整、簽章無效或與先前 Release 的憑證不同，Release 工作會失敗，保留原本的版本，不退回 Debug 簽章。
+
+- 每次 master CI 成功即建立新的正式簽章 Release，包含 `exchange-latest.apk`、`exchange-latest.apk.sha256` 及 `SIGNING-INFO.txt`。
+- 新 Release 成功發布且確認檔案齊全後，才會刪除所有舊 Releases 與其標籤。清理失敗會使工作失敗，請手動檢查。
+- `versionCode` 依 GitHub Actions run number 遞增，Release 簽章金鑰固定，讓新 APK 能覆蓋安裝舊版（同一 applicationId 與簽章前提）。
+- 下載固定入口：[最新 Release](https://github.com/jimmy0933b3-sudo/exchange/releases/latest)。
+- 本專案原本的 Debug APK 使用 Android Debug Keystore，與 Release 不同，不保證能直接覆蓋安裝；若曾安裝 Debug 版，首次改裝 Release 版可能需要先解除安裝。
+
 
 ---
 
@@ -80,6 +92,5 @@
 
 ## 📦 如何下載 APK
 
-1. 至本 Repository 的 **Actions** 頁面。
-2. 點選最新成功的 **Android CI** Build。
-3. 在頁面下方的 **Artifacts** 區塊下載 `app-debug` Artifact 即可取得最新的 APK 檔案。
+前往 [GitHub Releases 的最新版](https://github.com/jimmy0933b3-sudo/exchange/releases/latest)，下載 `exchange-latest.apk` 並安裝。可用附帶的 `exchange-latest.apk.sha256` 驗證完整性。PR 開發測試版則仍可從 Actions 的 Debug Artifacts 下載。
+

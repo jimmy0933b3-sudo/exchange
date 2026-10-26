@@ -14,8 +14,10 @@ android {
         applicationId = "com.fubon.fxmonitor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        // Give every CI run a monotonically increasing installable version.
+        // Local developer builds retain the original version by default.
+        versionCode = providers.gradleProperty("buildVersionCode").orNull?.toIntOrNull() ?: 1
+        versionName = providers.gradleProperty("buildVersionCode").orNull?.let { "1.0.$it" } ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -24,9 +26,25 @@ android {
         }
     }
 
+    signingConfigs {
+        create("ciRelease") {
+            // Only attach a signing config when the trusted CI has restored
+            // the fixed keystore. Never embed keys or passwords in this repo.
+            val signingFile = providers.gradleProperty("signingStoreFile").orNull
+            if (!signingFile.isNullOrBlank()) {
+                storeFile = file(signingFile)
+                storePassword = providers.gradleProperty("signingStorePassword").orNull
+                keyAlias = providers.gradleProperty("signingKeyAlias").orNull
+                keyPassword = providers.gradleProperty("signingKeyPassword").orNull
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (providers.gradleProperty("signingStoreFile").isPresent) {
+                signingConfig = signingConfigs.getByName("ciRelease")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
