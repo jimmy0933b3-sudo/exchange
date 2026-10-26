@@ -57,6 +57,7 @@ GitHub Actions 在 PR 與開發分支執行單元測試及 Debug APK 建置。**
 - 新 Release 成功發布且確認檔案齊全後，才會刪除所有舊 Releases 與其標籤。清理失敗會使工作失敗，請手動檢查。
 - `versionCode` 依 GitHub Actions run number 遞增，Release 簽章金鑰固定，讓新 APK 能覆蓋安裝舊版（同一 applicationId 與簽章前提）。
 - 下載固定入口：[最新 Release](https://github.com/jimmy0933b3-sudo/exchange/releases/latest)。
+- **Fork 專案首次使用 CI**：若 Actions 顯示 0 筆執行紀錄，先在 [Actions](https://github.com/jimmy0933b3-sudo/exchange/actions) 啟用工作流程，或到 [Settings → Actions → General](https://github.com/jimmy0933b3-sudo/exchange/settings/actions) 確認允許執行；再於 Actions → Android CI and Signed Release → Run workflow 選取 `master` 手動執行。尚未啟用的工作流程，不會因為新 commit 而自動發布 APK。
 - 本專案原本的 Debug APK 使用 Android Debug Keystore，與 Release 不同，不保證能直接覆蓋安裝；若曾安裝 Debug 版，首次改裝 Release 版可能需要先解除安裝。
 
 
