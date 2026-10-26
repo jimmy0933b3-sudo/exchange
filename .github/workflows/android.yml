@@ -111,8 +111,8 @@ jobs:
             "$cert_sha" "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" > build/release/SIGNING-INFO.txt
           echo "SIGNER_SHA256=$cert_sha" >> "$GITHUB_ENV"
           echo "### Verified signed Release APK" >> "$GITHUB_STEP_SUMMARY"
-          echo "Certificate SHA-256: `$cert_sha`" >> "$GITHUB_STEP_SUMMARY"
-          echo "versionCode: `$GITHUB_RUN_NUMBER`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Certificate SHA-256: $cert_sha" >> "$GITHUB_STEP_SUMMARY"
+          echo "versionCode: $GITHUB_RUN_NUMBER" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish new release and remove older releases
         shell: bash
