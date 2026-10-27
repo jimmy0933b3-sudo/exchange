@@ -14,7 +14,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -83,81 +95,101 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavigation(startTargetCurrency: String?) {
     val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val tabs = listOf("home", "calculator", "alerts", "settings")
+    val selected = tabs.indexOf(currentRoute)
+    val start = if (startTargetCurrency != null) "detail/$startTargetCurrency" else "home"
 
-    val startDestination = if (startTargetCurrency != null) {
-        "detail/$startTargetCurrency"
-    } else {
-        "home"
-    }
-
-    NavHost(navController = navController, startDestination = startDestination) {
-        composable("home") {
-            val viewModel: HomeViewModel = hiltViewModel()
-            HomeScreen(
-                viewModel = viewModel,
-                onCurrencyClick = { code -> navController.navigate("detail/$code") },
-                onNavigateToAlerts = { navController.navigate("alerts") },
-                onNavigateToCalculator = { navController.navigate("calculator") },
-                onNavigateToSettings = { navController.navigate("settings") }
-            )
+    // Navigation appears on primary destinations; detail, create-alert, and
+    // widget configuration are focused tasks with their own Back control.
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            if (selected >= 0) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 4.dp
+                ) {
+                    listOf(
+                        Triple("home", "首頁", Icons.Default.Home),
+                        Triple("calculator", "換匯", Icons.Default.Calculate),
+                        Triple("alerts", "提醒", Icons.Default.NotificationsNone),
+                        Triple("settings", "設定", Icons.Default.Tune)
+                    ).forEach { (route, label, icon) ->
+                        NavigationBarItem(
+                            selected = currentRoute == route,
+                            onClick = {
+                                if (currentRoute != route) {
+                                    navController.navigate(route) {
+                                        popUpTo("home") { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                            icon = { Icon(icon, contentDescription = null) },
+                            label = { Text(label) },
+                            alwaysShowLabel = true
+                        )
+                    }
+                }
+            }
         }
-
-        composable(
-            route = "detail/{currency}",
-            arguments = listOf(navArgument("currency") { type = NavType.StringType })
-        ) {
-            val viewModel: DetailViewModel = hiltViewModel()
-            DetailScreen(
-                viewModel = viewModel,
-                onBackClick = { navController.popBackStack() },
-                onAddAlertClick = { code -> navController.navigate("alerts_add/$code") }
-            )
-        }
-
-        composable("alerts") {
-            val viewModel: AlertViewModel = hiltViewModel()
-            AlertScreen(
-                viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable(
-            route = "alerts_add/{currency}",
-            arguments = listOf(navArgument("currency") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val currencyCode = backStackEntry.arguments?.getString("currency")
-            val viewModel: AlertViewModel = hiltViewModel()
-            viewModel.openAddDialog(currencyCode)
-            AlertScreen(
-                viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable("calculator") {
-            val viewModel: CalculatorViewModel = hiltViewModel()
-            CalculatorScreen(
-                viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
-            )
-        }
-
-        composable("settings") {
-            val viewModel: SettingsViewModel = hiltViewModel()
-            SettingsScreen(
-                viewModel = viewModel,
-                onBackClick = { navController.popBackStack() },
-                onNavigateToWidgetSettings = { navController.navigate("widget_settings") }
-            )
-        }
-
-        composable("widget_settings") {
-            val viewModel: WidgetSettingsViewModel = hiltViewModel()
-            WidgetSettingsScreen(
-                viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
-            )
+    ) { navPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(navPadding)) {
+            NavHost(navController = navController, startDestination = start) {
+                composable("home") {
+                    val viewModel: HomeViewModel = hiltViewModel()
+                    HomeScreen(
+                        viewModel = viewModel,
+                        onCurrencyClick = { code -> navController.navigate("detail/$code") },
+                        onNavigateToAlerts = { navController.navigate("alerts") },
+                        onNavigateToCalculator = { navController.navigate("calculator") },
+                        onNavigateToSettings = { navController.navigate("settings") }
+                    )
+                }
+                composable(
+                    route = "detail/{currency}",
+                    arguments = listOf(navArgument("currency") { type = NavType.StringType })
+                ) {
+                    val viewModel: DetailViewModel = hiltViewModel()
+                    DetailScreen(
+                        viewModel = viewModel,
+                        onBackClick = { navController.popBackStack() },
+                        onAddAlertClick = { code -> navController.navigate("alerts_add/$code") }
+                    )
+                }
+                composable("alerts") {
+                    val viewModel: AlertViewModel = hiltViewModel()
+                    AlertScreen(viewModel = viewModel, onBackClick = { navController.popBackStack() })
+                }
+                composable(
+                    route = "alerts_add/{currency}",
+                    arguments = listOf(navArgument("currency") { type = NavType.StringType })
+                ) { backStack ->
+                    val currencyCode = backStack.arguments?.getString("currency")
+                    val viewModel: AlertViewModel = hiltViewModel()
+                    LaunchedEffect(currencyCode) { viewModel.openAddDialog(currencyCode) }
+                    AlertScreen(viewModel = viewModel, onBackClick = { navController.popBackStack() })
+                }
+                composable("calculator") {
+                    val viewModel: CalculatorViewModel = hiltViewModel()
+                    CalculatorScreen(viewModel = viewModel, onBackClick = { navController.popBackStack() })
+                }
+                composable("settings") {
+                    val viewModel: SettingsViewModel = hiltViewModel()
+                    SettingsScreen(
+                        viewModel = viewModel,
+                        onBackClick = { navController.popBackStack() },
+                        onNavigateToWidgetSettings = { navController.navigate("widget_settings") }
+                    )
+                }
+                composable("widget_settings") {
+                    val viewModel: WidgetSettingsViewModel = hiltViewModel()
+                    WidgetSettingsScreen(viewModel = viewModel, onBackClick = { navController.popBackStack() })
+                }
+            }
         }
     }
 }
