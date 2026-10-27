@@ -85,7 +85,13 @@ class MainActivity : ComponentActivity() {
             val darkMode by userPrefs.darkMode.collectAsState(initial = isSystemInDarkTheme())
 
             FubonFXMonitorTheme(darkTheme = darkMode) {
-                AppNavigation(startTargetCurrency = ta@Composable
+                AppNavigation(startTargetCurrency = targetCurrency)
+            }
+        }
+    }
+}
+
+@Composable
 fun AppNavigation(startTargetCurrency: String?) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
