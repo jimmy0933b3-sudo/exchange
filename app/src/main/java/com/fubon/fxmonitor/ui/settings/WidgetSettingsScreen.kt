@@ -45,17 +45,13 @@ fun WidgetSettingsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("我的匯率｜Widget 設定") },
+                title = { Text("桌面 Widget", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         }
     ) { padding ->
@@ -69,6 +65,10 @@ fun WidgetSettingsScreen(
         ) {
             // Widget Selection Section
             item {
+                Text("自訂桌面匯率看板", style = MaterialTheme.typography.headlineMedium)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("選擇 Widget 並調整預覽與顯示方式", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(12.dp))
                 Text("選擇編輯的 Widget", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(4.dp))
                 Card(
@@ -358,7 +358,7 @@ fun WidgetSettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(18.dp)
                 ) {
                     Text("儲存設定並更新 Widget", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
