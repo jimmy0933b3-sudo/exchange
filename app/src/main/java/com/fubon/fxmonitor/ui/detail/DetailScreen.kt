@@ -3,6 +3,7 @@ package com.fubon.fxmonitor.ui.detail
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import com.fubon.fxmonitor.ui.theme.FxInk
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -57,7 +60,7 @@ fun DetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("${uiState.currencyCode.flagEmoji} ${uiState.currencyCode.displayName} (${uiState.currencyCode.name})")
+                    Text("${uiState.currencyCode.displayName} · ${uiState.currencyCode.name}", fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
@@ -70,10 +73,7 @@ fun DetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }
@@ -86,80 +86,77 @@ fun DetailScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header stats & controls
+            // Clear hierarchy: the selected quote is the focal point.
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth().background(
+                        Brush.linearGradient(listOf(FxInk, Color(0xFF155B65))),
+                        RoundedCornerShape(24.dp)
+                    ).padding(20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(uiState.currencyCode.flagEmoji, fontSize = 28.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${uiState.currencyCode.displayName} · ${uiState.currencyCode.name}",
+                            style = MaterialTheme.typography.titleMedium, color = Color.White
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        "目前報價 · ${if (uiState.selectedRateType == RateType.SPOT) "即期" else "現鈔"} / ${if (uiState.selectedBankSide == BankSide.BUY) "銀行買入" else "銀行賣出"}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color(0xFFB6DAD8)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        uiState.currentPrice,
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text("台北富邦銀行公開匯率", style = MaterialTheme.typography.bodySmall, color = Color(0xFFC2D5DF))
+                }
+            }
+
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(21.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                val rateTypeLabel = if (uiState.selectedRateType == RateType.SPOT) "即期" else "現鈔"
-                                val bankSideLabel = if (uiState.selectedBankSide == BankSide.BUY) "買入" else "賣出"
-                                Text(
-                                    text = "目前牌價 ($rateTypeLabel$bankSideLabel)",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = uiState.currentPrice,
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("匯率類型", style = MaterialTheme.typography.titleSmall)
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SegmentedButton(
+                                selected = uiState.selectedRateType == RateType.SPOT,
+                                onClick = { viewModel.setRateType(RateType.SPOT) },
+                                shape = SegmentedButtonDefaults.itemShape(0, 2),
+                                modifier = Modifier.weight(1f)
+                            ) { Text("即期") }
+                            SegmentedButton(
+                                selected = uiState.selectedRateType == RateType.CASH,
+                                onClick = { viewModel.setRateType(RateType.CASH) },
+                                shape = SegmentedButtonDefaults.itemShape(1, 2),
+                                modifier = Modifier.weight(1f)
+                            ) { Text("現鈔") }
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Rate Type & Bank Side Selectors
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Spot / Cash Toggle
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                                SegmentedButton(
-                                    selected = uiState.selectedRateType == RateType.SPOT,
-                                    onClick = { viewModel.setRateType(RateType.SPOT) },
-                                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                                ) {
-                                    Text("即期", fontSize = 13.sp)
-                                }
-                                SegmentedButton(
-                                    selected = uiState.selectedRateType == RateType.CASH,
-                                    onClick = { viewModel.setRateType(RateType.CASH) },
-                                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                                ) {
-                                    Text("現鈔", fontSize = 13.sp)
-                                }
-                            }
-
-                            // Buy / Sell Toggle
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                                SegmentedButton(
-                                    selected = uiState.selectedBankSide == BankSide.BUY,
-                                    onClick = { viewModel.setBankSide(BankSide.BUY) },
-                                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                                ) {
-                                    Text("買入", fontSize = 13.sp)
-                                }
-                                SegmentedButton(
-                                    selected = uiState.selectedBankSide == BankSide.SELL,
-                                    onClick = { viewModel.setBankSide(BankSide.SELL) },
-                                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                                ) {
-                                    Text("賣出", fontSize = 13.sp)
-                                }
-                            }
+                        Text("報價方向", style = MaterialTheme.typography.titleSmall)
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SegmentedButton(
+                                selected = uiState.selectedBankSide == BankSide.BUY,
+                                onClick = { viewModel.setBankSide(BankSide.BUY) },
+                                shape = SegmentedButtonDefaults.itemShape(0, 2),
+                                modifier = Modifier.weight(1f)
+                            ) { Text("銀行買入") }
+                            SegmentedButton(
+                                selected = uiState.selectedBankSide == BankSide.SELL,
+                                onClick = { viewModel.setBankSide(BankSide.SELL) },
+                                shape = SegmentedButtonDefaults.itemShape(1, 2),
+                                modifier = Modifier.weight(1f)
+                            ) { Text("銀行賣出") }
                         }
                     }
                 }
@@ -167,13 +164,12 @@ fun DetailScreen(
 
             // Time range selector
             item {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "歷史趨勢區間",
+                        text = "歷史匯率趨勢",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -195,9 +191,9 @@ fun DetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(260.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(21.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Box(modifier = Modifier.padding(16.dp)) {
                         RateTrendChart(
@@ -214,9 +210,9 @@ fun DetailScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(21.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
@@ -301,7 +297,7 @@ fun DetailScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
                 ) {
                     Row(
@@ -330,9 +326,9 @@ fun DetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { isHistoryListExpanded = !isHistoryListExpanded },
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(1.dp)
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Row(
                         modifier = Modifier
@@ -375,9 +371,9 @@ fun DetailScreen(
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(18.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(1.dp)
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 // Table Header
