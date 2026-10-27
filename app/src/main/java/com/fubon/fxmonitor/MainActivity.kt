@@ -15,6 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -136,7 +137,7 @@ fun AppNavigation(startTargetCurrency: String?) {
             }
         }
     ) { navPadding ->
-        Box(modifier = Modifier.padding(navPadding)) {
+        Box(modifier = Modifier.fillMaxSize().padding(navPadding)) {
             NavHost(navController = navController, startDestination = start) {
                 composable("home") {
                     val viewModel: HomeViewModel = hiltViewModel()
