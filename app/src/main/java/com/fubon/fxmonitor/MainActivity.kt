@@ -34,6 +34,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.fubon.fxmonitor.data.local.UserPreferencesRepository
+import com.fubon.fxmonitor.backup.CloudBackupManager
+import com.fubon.fxmonitor.backup.DriveBackupClient
+import com.fubon.fxmonitor.backup.CloudBackupScreen
 import com.fubon.fxmonitor.ui.alert.AlertScreen
 import com.fubon.fxmonitor.ui.alert.AlertViewModel
 import com.fubon.fxmonitor.ui.calculator.CalculatorScreen
@@ -56,6 +59,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var userPrefs: UserPreferencesRepository
+
+    @Inject lateinit var backupManager: CloudBackupManager
+    @Inject lateinit var driveBackupClient: DriveBackupClient
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -86,14 +92,14 @@ class MainActivity : ComponentActivity() {
             val darkMode by userPrefs.darkMode.collectAsState(initial = isSystemInDarkTheme())
 
             FubonFXMonitorTheme(darkTheme = darkMode) {
-                AppNavigation(startTargetCurrency = targetCurrency)
+                AppNavigation(startTargetCurrency = targetCurrency, backupManager = backupManager, driveBackupClient = driveBackupClient)
             }
         }
     }
 }
 
 @Composable
-fun AppNavigation(startTargetCurrency: String?) {
+fun AppNavigation(startTargetCurrency: String?, backupManager: CloudBackupManager, driveBackupClient: DriveBackupClient) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -182,8 +188,12 @@ fun AppNavigation(startTargetCurrency: String?) {
                     SettingsScreen(
                         viewModel = viewModel,
                         onBackClick = { navController.popBackStack() },
-                        onNavigateToWidgetSettings = { navController.navigate("widget_settings") }
+                        onNavigateToWidgetSettings = { navController.navigate("widget_settings") },
+                        onNavigateToCloudBackup = { navController.navigate("cloud_backup") }
                     )
+                }
+                composable("cloud_backup") {
+                    CloudBackupScreen(manager = backupManager, drive = driveBackupClient, onBackClick = { navController.popBackStack() })
                 }
                 composable("widget_settings") {
                     val viewModel: WidgetSettingsViewModel = hiltViewModel()
