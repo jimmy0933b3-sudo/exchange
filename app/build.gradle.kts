@@ -19,6 +19,9 @@ android {
         versionCode = providers.gradleProperty("buildVersionCode").orNull?.toIntOrNull() ?: 1
         versionName = providers.gradleProperty("buildVersionCode").orNull?.let { "1.0.$it" } ?: "1.0.0"
 
+        val webClientId = providers.gradleProperty("googleWebClientId").orNull
+            ?: System.getenv("GOOGLE_WEB_CLIENT_ID").orEmpty()
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\\"$webClientId\\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ksp {
@@ -59,6 +62,7 @@ android {
         jvmTarget = "21"
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }
@@ -75,6 +79,12 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+
+    // Google Sign-In and Drive app-specific storage.
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
+    implementation("com.google.android.gms:play-services-auth:21.4.0")
 
     // Room
     implementation(libs.androidx.room.runtime)
