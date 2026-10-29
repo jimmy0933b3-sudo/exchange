@@ -109,4 +109,11 @@ class CloudBackupManager @Inject constructor(
             request
         )
     }
+
+    suspend fun refreshFiles(): List<DriveBackupFile> = withContext(Dispatchers.IO) {
+        val email = _state.value.email ?: error("請先登入 Google")
+        val files = drive.list(drive.tokenWithoutPrompt(email))
+        _state.value = _state.value.copy(backups = files)
+        files
+    }
 }
