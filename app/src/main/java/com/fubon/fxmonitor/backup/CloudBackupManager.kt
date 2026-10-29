@@ -91,6 +91,8 @@ class CloudBackupManager @Inject constructor(
             !result.grantedScopes.contains(DriveBackupClient.SCOPE)) {
             throw IllegalStateException("尚未授權 Exchange 存取 Drive 應用程式資料")
         }
+        prefs.edit().putBoolean("authorized", true).apply()
+        _state.value = _state.value.copy(authorized = true)
         setAutoEnabled(true)
     }
 
