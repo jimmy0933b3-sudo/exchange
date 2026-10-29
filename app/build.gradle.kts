@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.fubon.fxmonitor"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.fubon.fxmonitor"
