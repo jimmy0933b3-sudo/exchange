@@ -21,7 +21,7 @@ android {
 
         val webClientId = providers.gradleProperty("googleWebClientId").orNull
             ?: System.getenv("GOOGLE_WEB_CLIENT_ID").orEmpty()
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\\"$webClientId\\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ksp {
