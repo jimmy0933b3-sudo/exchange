@@ -134,4 +134,24 @@ class CloudBackupManager @Inject constructor(
             _state.value = _state.value.copy(busy = false)
         }
     }
+
+    suspend fun restore(file: DriveBackupFile): Int = lock.withLock {
+        _state.value = _state.value.copy(busy = true)
+        try {
+            withContext(Dispatchers.IO) {
+                val email = _state.value.email ?: error("請先登入 Google")
+                val token = drive.tokenWithoutPrompt(email)
+                val found = drive.list(token).firstOrNull { it.id == file.id && it.name == file.name }
+                    ?: error("找不到指定備份")
+                archive.mergeRestore(drive.download(token, found))
+            }
+        } finally {
+            _state.value = _state.value.copy(busy = false)
+        }
+    }
+
+    fun reportError(message: String) {
+        prefs.edit().putString("lastError", message.take(200)).apply()
+        _state.value = _state.value.copy(lastError = message.take(200))
+    }
 }
