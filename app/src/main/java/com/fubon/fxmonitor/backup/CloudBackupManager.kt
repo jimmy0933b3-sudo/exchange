@@ -24,6 +24,7 @@ import javax.inject.Singleton
 data class CloudBackupState(
     val email: String? = null,
     val enabled: Boolean = false,
+    val authorized: Boolean = false,
     val wifiOnly: Boolean = true,
     val lastBackupTime: Long = 0L,
     val lastError: String? = null,
@@ -45,6 +46,7 @@ class CloudBackupManager @Inject constructor(
     private fun load() = CloudBackupState(
         email = prefs.getString("email", null),
         enabled = prefs.getBoolean("enabled", false),
+        authorized = prefs.getBoolean("authorized", false),
         wifiOnly = prefs.getBoolean("wifiOnly", true),
         lastBackupTime = prefs.getLong("lastSuccess", 0L),
         lastError = prefs.getString("lastError", null)
