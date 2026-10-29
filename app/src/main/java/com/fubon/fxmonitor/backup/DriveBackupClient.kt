@@ -128,7 +128,17 @@ class DriveBackupClient @Inject constructor(@ApplicationContext private val cont
         client.newCall(authenticated(token, "$API/${file.id}?alt=media").get().build()).execute().use { response ->
             if (!response.isSuccessful) throw IOException("下載備份失敗：HTTP ${response.code}")
             // Limit both network and decompression payload sizes.
-            val bytes = response.body?.byteStream()?.use { it.readNBytes(20 * 1024 * 1024 + 1) } ?: ByteArray(0)
+            val bytes = response.body?.byteStream()?.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val block = ByteArray(8192)
+                while (true) {
+                    val n = input.read(block)
+                    if (n < 0) break
+                    if (output.size() + n > 20 * 1024 * 1024) throw IOException("備份檔過大")
+                    output.write(block, 0, n)
+                }
+                output.toByteArray()
+            } ?: ByteArray(0)
             if (bytes.isEmpty() || bytes.size > 20 * 1024 * 1024) throw IOException("備份檔過大或為空")
             if (file.md5.isNotEmpty() && !md5(bytes).equals(file.md5, ignoreCase = true)) {
                 throw IOException("備份校驗失敗，已取消還原")
