@@ -5,6 +5,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface RateDao {
+    @Query("SELECT * FROM latest_rates ORDER BY currencyCode ASC")
+    suspend fun snapshotLatest(): List<LatestRateEntity>
+
+    @Query("SELECT * FROM rate_history ORDER BY currencyCode, timestamp ASC")
+    suspend fun snapshotHistory(): List<RateHistoryEntity>
+
     @Query("SELECT * FROM latest_rates ORDER BY displayOrder ASC, currencyCode ASC")
     fun getAllLatestRates(): Flow<List<LatestRateEntity>>
 
@@ -42,6 +48,12 @@ interface RateDao {
 
 @Dao
 interface AlertDao {
+    @Query("SELECT * FROM exchange_alerts ORDER BY createdTime ASC")
+    suspend fun snapshotAlerts(): List<ExchangeAlertEntity>
+
+    @Query("SELECT * FROM alert_history ORDER BY triggeredTime ASC")
+    suspend fun snapshotAlertHistory(): List<AlertHistoryEntity>
+
     @Query("SELECT * FROM exchange_alerts ORDER BY createdTime DESC")
     fun getAllAlerts(): Flow<List<ExchangeAlertEntity>>
 
