@@ -23,7 +23,8 @@ import java.util.Locale
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBackClick: () -> Unit,
-    onNavigateToWidgetSettings: () -> Unit = {}
+    onNavigateToWidgetSettings: () -> Unit = {},
+    onNavigateToCloudBackup: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
@@ -51,6 +52,20 @@ fun SettingsScreen(
                     Text("打造你的匯率看板", style = MaterialTheme.typography.headlineMedium)
                     Spacer(Modifier.height(6.dp))
                     Text("調整更新頻率、通知方式與桌面小工具。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            item {
+                SettingsPanel("Google 帳戶與雲端備份", Icons.Default.Cloud) {
+                    Text("登入 Google 後，可將歷史匯率、收藏與提醒儲存到 Google Drive，換手機再合併還原。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    FilledTonalButton(onClick = onNavigateToCloudBackup, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("登入與管理雲端備份")
+                    }
                 }
             }
 
