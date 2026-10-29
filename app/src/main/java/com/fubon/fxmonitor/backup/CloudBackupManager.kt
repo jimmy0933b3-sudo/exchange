@@ -60,6 +60,7 @@ class CloudBackupManager @Inject constructor(
         val same = previous == email
         prefs.edit().putString("email", email)
             .putBoolean("enabled", if (same) _state.value.enabled else false)
+            .putBoolean("authorized", if (same) _state.value.authorized else false)
             .putLong("lastSuccess", if (same) _state.value.lastBackupTime else 0L)
             .remove("lastError").apply()
         _state.value = load()
@@ -67,7 +68,7 @@ class CloudBackupManager @Inject constructor(
     }
 
     fun signOut() {
-        prefs.edit().remove("email").putBoolean("enabled", false).remove("lastError").apply()
+        prefs.edit().remove("email").putBoolean("enabled", false).putBoolean("authorized", false).remove("lastError").apply()
         _state.value = load()
         reschedule()
     }
@@ -79,7 +80,7 @@ class CloudBackupManager @Inject constructor(
     }
 
     fun setAutoEnabled(enabled: Boolean) {
-        if (enabled) check(!_state.value.email.isNullOrBlank()) { "請先登入 Google 帳號" }
+        if (enabled) check(!_state.value.email.isNullOrBlank() && _state.value.authorized) { "請先完成 Google Drive 授權" }
         prefs.edit().putBoolean("enabled", enabled).apply()
         _state.value = _state.value.copy(enabled = enabled)
         reschedule()
