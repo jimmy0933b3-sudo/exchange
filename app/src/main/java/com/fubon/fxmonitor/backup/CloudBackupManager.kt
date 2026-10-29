@@ -116,4 +116,22 @@ class CloudBackupManager @Inject constructor(
         _state.value = _state.value.copy(backups = files)
         files
     }
+
+    suspend fun backupNow(): DriveBackupFile = lock.withLock {
+        _state.value = _state.value.copy(busy = true, lastError = null)
+        try {
+            withContext(Dispatchers.IO) {
+                val email = _state.value.email ?: error("請先登入 Google")
+                val token = drive.tokenWithoutPrompt(email)
+                val bytes = archive.export()
+                val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US).format(Date())
+                val uploaded = drive.upload(token, "exchange-backup-$timestamp.json.gz", bytes)
+                prefs.edit().putLong("lastSuccess", System.currentTimeMillis()).remove("lastError").apply()
+                _state.value = _state.value.copy(lastBackupTime = prefs.getLong("lastSuccess", 0L))
+                uploaded
+            }
+        } finally {
+            _state.value = _state.value.copy(busy = false)
+        }
+    }
 }
