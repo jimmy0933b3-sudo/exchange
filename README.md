@@ -38,6 +38,16 @@
 
 ---
 
+## ☁️ Google 帳戶與雲端備份
+
+設定 → **Google 帳戶與雲端備份**：可選擇使用 Google 帳號登入、授權 `drive.appdata` 後手動備份、查看歷史版本、合併還原，或啟用每天一次的 WorkManager 自動備份（預設僅 Wi-Fi）。保留最近 7 筆備份，登出不會清除雲端資料；未登入仍可使用匯率功能。
+
+**初次啟用需要 Google Cloud OAuth 專案配置及 Android 發行簽章 SHA-1，且必須將 Web OAuth Client ID 設為 GitHub Actions `GOOGLE_WEB_CLIENT_ID` 後重新打包。** 沒有這項配置時，備份頁會顯示提示，不會嘗試使用無效 Client ID 登入。
+
+請先看 [Google 登入與雲端備份設定指南](CLOUD_BACKUP_SETUP.md)。
+
+---
+
 ## 🔑 CI / CD 說明
 
 GitHub Actions 在 PR 與開發分支執行單元測試及 Debug APK 建置。**只有 master 通過測試後**，才使用固定簽章金鑰建置可更新安裝的正式 Release APK。
