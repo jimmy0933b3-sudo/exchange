@@ -18,6 +18,8 @@ concurrency:
 jobs:
   verify:
     name: Test and build debug APK
+    env:
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -44,6 +46,8 @@ jobs:
 
   release:
     name: Sign and publish latest release
+    env:
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
     needs: verify
     if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
