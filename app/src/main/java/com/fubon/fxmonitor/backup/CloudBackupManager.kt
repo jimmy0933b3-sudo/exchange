@@ -128,6 +128,8 @@ class CloudBackupManager @Inject constructor(
                 val uploaded = drive.upload(token, "exchange-backup-$timestamp.json.gz", bytes)
                 prefs.edit().putLong("lastSuccess", System.currentTimeMillis()).remove("lastError").apply()
                 _state.value = _state.value.copy(lastBackupTime = prefs.getLong("lastSuccess", 0L))
+                runCatching { drive.prune(token, 7) }
+                runCatching { drive.list(token) }.onSuccess { files -> _state.value = _state.value.copy(backups = files) }
                 uploaded
             }
         } finally {
