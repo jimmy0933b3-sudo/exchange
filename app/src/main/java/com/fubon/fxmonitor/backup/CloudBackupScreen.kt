@@ -132,7 +132,7 @@ fun CloudBackupScreen(manager: CloudBackupManager, drive: DriveBackupClient, onB
             if (state.email != null) {
                 item {
                     BackupPanel("備份設定", Icons.Default.CloudSync) {
-                        if (!state.enabled) {
+                        if (!state.authorized) {
                             Text("請先授權 Drive 應用程式資料，才能啟用定期備份。", style = MaterialTheme.typography.bodyMedium)
                             Spacer(Modifier.height(10.dp))
                             Button(onClick = {
@@ -174,7 +174,7 @@ fun CloudBackupScreen(manager: CloudBackupManager, drive: DriveBackupClient, onB
                         state.lastError?.let { Text("上次錯誤：$it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
-                if (state.enabled) {
+                if (state.authorized) {
                     item {
                         Button(
                             modifier = Modifier.fillMaxWidth(),
